@@ -11,3 +11,4 @@ Restore some useful scripts.
 - ***getDirectoryFilesPermissions.sh***: get all files' permissions in a specified directory
 - ***getSystemUsersInfos.sh***: use command:id to get the infomation of system users 
 - ***params.sh***: the usage of case
+- ***generateRandomNums.sh***: generate random numbers
