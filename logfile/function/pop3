@@ -1,0 +1,65 @@
+#!/bin/bash
+#
+# 主要分析 sshd 這個服務所產生的 logfile 資料，
+# 分析的是 /var/log/messages 這個檔案
+#
+# Writtern by VBird
+#
+# 2004/12/28	VBird	Released
+#
+#####################################################################
+# 3 POP3 的登錄資料的功能函數 (Function) ！
+funcpop3 () {
+	echo "================= POP3 的登錄檔資訊彙整 ======================"	>> $logfile
+	pop3right=`cat $basedir/maillog|grep "pop3.*Login user" |  wc -l | \
+		awk '{print $1}'`
+	if [ "$pop3right" != "0" ]; then
+		echo "POP3登入次數: $pop3right" | \
+			awk '{printf( "%-40s %4d\n", $1, $2)}'			>> $logfile
+		echo "帳號   來源位址 次數 "|  \
+			awk '{printf("%-6s %-15s %-25s %-4s\n", " ", $1, $2, $3)}'	>> $logfile
+		cat $basedir/maillog | grep "pop3.*Login user" |\
+			sed 's/^.*user=//g' | awk '{print $1}' \
+			> $basedir/maillogpop-1
+		cat $basedir/maillog | grep "pop3.*Login user" |\
+			sed 's/^.*host=//g' | sed 's/^.*\[//g' |\
+			sed 's/\].*$//g' | awk '{print $1}' \
+			> $basedir/maillogpop-2
+		paste $basedir/maillogpop-1 $basedir/maillogpop-2 \
+			> $basedir/maillogpop
+		/bin/awk '{ for( i=0; i<1; i++ ) Number[$i]++ };
+			END{ for( course in Number )
+			printf( "%-35s %4d\n", course, Number[course])}' \
+			$basedir/maillogpop   | sort -k 3 -gr | \
+			awk '{printf("%-6s %-15s %-25s %3d\n", " ", $1, $2, $3)}'		>> $logfile
+		echo " "                                                        >> $logfile
+	fi
+	pop3error=`cat $basedir/messageslog|grep "pop3.*Login fail"| \
+		 wc -l |  awk '{print $1}'`
+	if [ "$pop3error" != "0" ]; then
+		echo "POP3錯誤登入次數: $pop3error" | \
+			awk '{printf( "%-40s %4d\n", $1, $2)}'			>> $logfile
+		echo "帳號   來源位址 次數 "|  \
+			awk '{printf("%-6s %-15s %-25s %-4s\n", " ", $1, $2, $3)}'	>> $logfile
+		cat $basedir/messageslog | grep "pop3.*Login fail" |\
+			sed 's/^.*user=//g' | awk '{print $1}' \
+			> $basedir/maillogpopno-1
+		cat $basedir/messageslog | grep "pop3.*Login fail" |\
+			sed 's/^.*host=//g' | sed 's/^.*\[//g' |\
+			sed 's/\].*$//g' | awk '{print $1}' \
+			> $basedir/maillogpopno-2
+		paste $basedir/maillogpopno-1 $basedir/maillogpopno-2 \
+			> $basedir/maillogpopno
+		/bin/awk '{ for( i=0; i<1; i++ ) Number[$i]++ };
+			END{ for( course in Number )
+			printf( "%-35s %4d\n", course, Number[course])}' \
+			$basedir/maillogpopno | sort -k 3 -gr | \
+			awk '{printf("%-6s %-15s %-25s %3d\n", " ", $1, $2, $3)}'		>> $logfile
+			echo " " 						>> $logfile
+	fi
+	if [ "$pop3error" == "0" ] && [ "$pop3right" == "0" ]; then
+		echo "今日沒有使用 POP3 的紀錄"					>> $logfile
+		echo " "							>> $logfile
+	fi
+}
+

@@ -1,0 +1,73 @@
+#!/bin/bash
+#
+# 主要分析 sshd 这个服务所产生的 logfile 資料，
+# 分析的是 /var/log/messages 这个档案
+#
+#####################################################################
+# SSH 的登录资料的功能函数 (Function) 这其中包含 su 指令！
+funcssh () {
+	echo "================= SSH 的登录记录整理 ======================="	>> $logfile
+	sshright=`cat $basedir/securelog |grep 'sshd.*Accept' | wc -l | \
+		awk '{print $1}'`
+	if [ "$sshright" != "0" ]; then
+		echo "一共成功登入的次数： $sshright" | \
+			awk '{printf("%-26s %3d\n",$1,$2)}' 			>> $logfile
+		echo "帐号   來源位址 次数 "| \
+			awk '{printf("%-6s %-10s %-15s %-4s\n", " ",$1, $2, $3)}'	>> $logfile
+		cat $basedir/securelog | grep 'sshd.*Accept' | \
+			sed 's/^.*for//g' |awk '{print $1}' \
+			> "$basedir/securelogssh-1"
+		cat $basedir/securelog | grep 'sshd.*Accept' | \
+			sed 's/^.*from//g' |awk '{print $1}' \
+			> "$basedir/securelogssh-2"
+		paste $basedir/securelogssh-1 $basedir/securelogssh-2  \
+			> $basedir/securelogssh
+		/bin/awk '{ for( i=0; i<1; i++ ) Number[$i]++ };
+			END{ for( course in Number )
+			printf( "%-25s %3d\n", course, Number[course])}' \
+			$basedir/securelogssh | sort -k 3 -gr  | \
+			awk '{printf("%-6s %-10s %-15s %3d\n", " ",$1, $2, $3)}'	>> $logfile
+		echo " "							>> $logfile
+	fi
+	ssherror=`cat $basedir/securelog | grep "sshd.*Fail" | wc -l | \
+		awk '{print $1}'`
+	if [ "$ssherror" != "0" ]; then
+		echo "一共错误登入的次数: $ssherror" | \
+			awk '{printf( "%-6s %-26s %3d\n", " ",$1, $2)}'		>> $logfile
+		echo "帐号   来源地址 次数 "| \
+			awk '{printf("%-6s %-10s %-15s %-4s\n", " ", $1, $2, $3)}'	>> $logfile
+		cat $basedir/securelog | grep "sshd.*Fail" | \
+			sed 's/^.*for//g' |awk '{print $1}' \
+			>  "$basedir/securelogsshno-1"
+		cat $basedir/securelog | grep "sshd.*Fail" | \
+			sed 's/^.*from//g' |awk '{print $1}' \
+			>  "$basedir/securelogsshno-2"
+		paste $basedir/securelogsshno-1 $basedir/securelogsshno-2 \
+			> $basedir/securelogsshno
+		/bin/awk '{ for( i=0; i<1; i++ ) Number[$i]++ };
+			END{ for( course in Number )
+			printf( "%-25s %3d\n", course, Number[course])}' \
+			$basedir/securelogsshno |sort -k 3 -gr  | \
+			awk '{printf("%-6s %-10s %-15s %3d\n", " ", $1, $2, $3)}'	>> $logfile
+		echo " "							>> $logfile
+	fi
+	cat $basedir/messageslog | grep "su"|grep "open"|grep "root"| \
+		sed 's/^.*by//g' |awk '{print $1}'|sort   >  $basedir/messagessu
+	sshsu=`wc -l $basedir/messagessu | awk '{print $1}'`
+	if [ "$sshsu" != "0" ]; then
+		echo "以 su 转换成 root 的使用者及次数" 			>> $logfile
+		echo "帐号   次数 "| \
+			awk '{printf("%-6s %-26s %-4s\n", " ", $1, $2)}'		>> $logfile
+		/bin/awk '{ for( i=0; i<1; i++ ) Number[$i]++ };
+			END{ for( course in Number )
+			printf( "%-25s %3d\n", course, Number[course])}' \
+			$basedir/messagessu   | sort -k 3 -gr | \
+			awk '{printf("%-6s %-25s %3d\n", " ", $1, $2)}'			>> $logfile
+		echo " "							>> $logfile
+	fi
+	if [ "$sshright" == "0" ] && [ "$ssherror" == "0" ]; then
+		echo "今日没有使用 SSH 的记录"					>> $logfile
+		echo " "							>> $logfile
+	fi
+}
+

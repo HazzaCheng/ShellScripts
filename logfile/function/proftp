@@ -1,0 +1,89 @@
+#!/bin/bash
+#
+# 主要分析 proftp 這個服務所產生的 logfile 資料，
+# 分析的是 /var/log/secure 這個檔案
+#
+# Writtern by VBird
+#
+# 2004/12/28    VBird   Released
+# 2005/01/05	VBird	因為 awk 不再需要 \ 跳脫 % ，所以修訂之！
+#
+#####################################################################
+# Proftp 的登錄資料的功能函數 (Function) ！
+funcproftp () {
+	echo "================= Proftp 的登錄檔資訊彙整 ===================="	>> $logfile
+	proftpright=`cat $basedir/securelog |grep "proftp.*USER.*Login succes" |\
+		 wc -l |  awk '{print $1}'`
+	if [ "$proftpright" != "0" ]; then
+		echo "Pro-FTP-成功登入次數: $proftpright" | \
+			awk '{printf( "%-41s %3d\n", $1, $2)}'		>> $logfile
+		echo "帳號   來源位址 次數 "| \
+			awk '{printf("%-15s %-25s %-4s\n", $1, $2, $3)}'	>> $logfile
+		cat $basedir/securelog | grep "proftp.*USER.*Login succes" | \
+			sed 's/^.*USER//g' | sed 's/:.*$//g' |\
+			awk '{print $1}'  > $basedir/securelogproftp-1
+		cat $basedir/securelog | grep "proftp.*USER.*Login succes" | \
+			sed 's/^.*\[//g' | sed 's/^.*\[//g' |\
+			sed 's/\].*$//g' | awk '{print $1}' \
+			> $basedir/securelogproftp-2
+		paste $basedir/securelogproftp-1 $basedir/securelogproftp-2 \
+			> $basedir/securelogproftp
+		/bin/awk '{ for( i=0; i<1; i++ ) Number[$i]++ };
+			END{ for( course in Number )
+			printf( "%-35s %3d\n", course, Number[course])}' \
+			$basedir/securelogproftp  | sort -k 3 -gr | \
+			awk '{printf("%-15s %-25s %3d\n", $1, $2, $3)}'	>> $logfile
+		echo " " 							>> $logfile
+	fi
+	proftperr1=`cat $basedir/securelog |grep "proftp.*USER.*Login fail" |\
+		 wc -l |  awk '{print $1}'`
+	if [ "$proftperr1" != "0" ]; then
+		echo "Pro-FTP-錯誤登入次數: $proftperr1" | \
+			awk '{printf( "%-41s %3d\n", $1, $2)}'		>> $logfile
+		echo "帳號   來源位址 次數 "| \
+			awk '{printf("%-15s %-25s %-4s\n", $1, $2, $3)}'	>> $logfile
+		cat $basedir/securelog | grep "proftp.*USER.*Login fail" | \
+			sed 's/^.*USER//g' | \
+			awk '{print $1}'  > $basedir/securelogproftpe1-1
+		cat $basedir/securelog | grep "proftp.*USER.*Login fail" | \
+			sed 's/^.*\[//g' | sed 's/^.*\[//g' |\
+			sed 's/\].*$//g' | awk '{print $1}' \
+			> $basedir/securelogproftpe1-2
+		paste $basedir/securelogproftpe1-1 $basedir/securelogproftpe1-2 \
+			> $basedir/securelogproftpe1
+		/bin/awk '{ for( i=0; i<1; i++ ) Number[$i]++ };
+			END{ for( course in Number )
+			printf( "%-35s %3d\n", course, Number[course])}' \
+			$basedir/securelogproftpe1  | sort -k 3 -gr | \
+			awk '{printf("%-15s %-25s %3d\n", $1, $2, $3)}'	>> $logfile
+		echo " " 							>> $logfile
+	fi
+	proftperr2=`cat $basedir/securelog |grep "proftp.*USER.*no such user" |\
+		 wc -l |  awk '{print $1}'`
+	if [ "$proftperr2" != "0" ]; then
+		echo "Pro-FTP-錯誤登入次數: $proftperr2" | \
+			awk '{printf( "%-41s %3d\n", $1, $2)}'		>> $logfile
+		echo "帳號   來源位址 次數 "| \
+			awk '{printf("%-15s %-25s %-4s\n", $1, $2, $3)}'	>> $logfile
+		cat $basedir/securelog | grep "proftp.*USER.*no such user" | \
+			sed 's/^.*USER//g' | sed 's/:.*$//g' |\
+			awk '{print $1}'  > $basedir/securelogproftpe2-1
+		cat $basedir/securelog | grep "proftp.*USER.*no such user" | \
+			sed 's/^.*\[//g' | sed 's/^.*\[//g' |\
+			sed 's/\].*$//g' | awk '{print $1}' \
+			> $basedir/securelogproftpe2-2
+		paste $basedir/securelogproftpe2-1 $basedir/securelogproftpe2-2 \
+			> $basedir/securelogproftpe2
+		/bin/awk '{ for( i=0; i<1; i++ ) Number[$i]++ };
+			END{ for( course in Number )
+			printf( "%-35s %3d\n", course, Number[course])}' \
+			$basedir/securelogproftpe2  | sort -k 3 -gr | \
+			awk '{printf("%-15s %-25s %3d\n", $1, $2, $3)}'	>> $logfile
+		echo " " 							>> $logfile
+	fi
+	if [ "$proftpright" == "0" ] && [ "$proftperr1" == "0" ] && [ "$proftperr2" == "0" ]; then
+		echo "今日沒有 Proftp 的相關資訊"			>> $logfile
+		echo " "							>> $logfile
+	fi
+}
+

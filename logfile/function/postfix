@@ -1,0 +1,248 @@
+#!/bin/bash
+#
+# 主要分析 postfix 这个服务所产生的 logfile 资料
+# 分析的是 /var/log/maillog 
+#
+#####################################################################
+# postfix 的登录资料的功能函数
+funcpost () {
+	echo "================= Postfix 的登录档资料整理 ==================="	>> $logfile
+
+	# 1. 检查是否存在认证机制
+	auth=`grep -v '^#' /etc/postfix/main.cf | grep smtpd_sasl_auth| cut -d'=' -f2|awk '{print $1}'`
+	if [ "$auth" == "yes" ]; then
+		echo "您的主机有进行 SASL 身份认证的功能"			>> $logfile
+		authtest=`cat $basedir/netstat.ps | grep saslauth`
+		if [ "$authtest" != "" ]; then
+			echo "      使用 saslauthd 这个协定进行认证"		>> $logfile
+		fi
+		echo " "							>> $logfile
+	fi
+
+	# 2. 检查是否存在greylist
+	authtest=`grep -v '^#' /etc/postfix/main.cf | grep check_policy_service`
+	if [ "$authtest" != "" ]; then
+		echo "您的主机有进行 Greylist 的政策分析"			>> $logfile
+		sec=`grep postgrey $basedir/netstat.ps | grep '\-\-delay' |sed 's/^.*--delay=//g' | awk '{print $1}'`
+		if [ "$sec" != "" ]; then
+			times="$sec"
+		else
+			times="200"
+		fi
+		greytimes=`grep Greylist $basedir/maillog|grep $times|wc -l|awk '{print $1}'`
+		echo "      使用 Greylist 接触到的进入信件数： $greytimes 次"	>> $logfile
+		echo " "							>> $logfile
+	fi
+
+	# 3. 共收件次数与总量！
+	postall=`cat $basedir/maillog | grep 'postfix.*qmgr.*from.*size' | \
+		wc -l | awk '{print $1}'`
+	if [ "$postall" != "0" ]; then
+		mailsize=`cat $basedir/maillog | \
+			grep 'postfix.*qmgr.*from.*size' | \
+			sed 's/^.*size=//g' | awk -F ',' '{print $1}' | \
+			awk '{ smtp = smtp + $1 } END {print smtp/1048576}'`
+		echo "SMTP 收受信件統計："					>> $logfile
+		echo "      共 $postall 次  ( $mailsize MBytes )"		>> $logfile
+		echo " "							>> $logfile
+	fi
+
+	# 4. 邮件信箱 (mailbox) 收件次数
+	echo "使用者信箱收信次数："						>> $logfile
+	grep 'delivered to mailbox' $basedir/maillog | sed 's/^.*to=<//g' | sed 's/@.*$//g'| \
+		egrep -v '(:|,)'| tr [:upper:] [:lower:] | sort -g |\
+		awk '{ for(i=0;i<1;i++) Number[$i]++ };
+			END{ for(course in Number )
+			printf( "%-30s %4d\n", course, Number[course])}' |\
+		sort -k 2 -nr |\
+		awk '{printf("%-6s %-20s %3d\n", " ", $1, $2)}'		>> $logfile
+		echo " "							>> $logfile
+
+	# 5. 关于body/header/access　进入垃圾箱的邮件分析
+#  	vb_post_filter1=`grep -v '^#' /etc/postfix/main.cf | grep body_checks`
+#  	vb_post_filter2=`grep 'Released by VBird' /etc/postfix/body_checks`
+#  	if [ "$vb_post_filter1" != "" ] && [ "$vb_post_filter2" != "" ]; then
+#  		echo "header/body 抵挡方式工作结果"			>> $logfile
+#  		the_number=`egrep '(unavailable IP|unavailable header|unavailable body)' $basedir/maillog | wc -l`
+#  		echo "全部被抵挡的信件次数  $the_number" |\
+#  		awk '{printf("%-6s %-30s %4d\n", " ", $1, $2)}'		>> $logfile
+#  		the_number=`grep 'unavailable IP' $basedir/maillog |wc -l`
+#  		echo "來自dynamic-IP的抵挡次数： $the_number" |\
+#  		awk '{printf("%-6s %-30s %4d\n", " ", $1, $2)}'		>> $logfile
+#  		the_number=`grep 'unavailable header' $basedir/maillog | grep -i 'virus'|wc -l`
+#  		echo "Header的病毒信： $the_number" |\
+#  		awk '{printf("%-6s %-30s %4d\n", " ", $1, $2)}'		>> $logfile
+#  		the_number=`grep 'unavailable header' $basedir/maillog | grep -i 'Commercial'|wc -l`
+#  		echo "Header的广告信： $the_number" |\
+#  		awk '{printf("%-6s %-30s %4d\n", " ", $1, $2)}'		>> $logfile
+#  		the_number=`grep 'unavailable body' $basedir/maillog | grep -i 'Virus'|wc -l`
+#  		echo "Body的病毒信： $the_number" |\
+#  		awk '{printf("%-6s %-30s %4d\n", " ", $1, $2)}'		>> $logfile
+#  		the_number=`grep 'unavailable body' $basedir/maillog | grep -i 'Commercial'|wc -l`
+#  		echo "Body的广告信： $the_number" |\
+#  		awk '{printf("%-6s %-30s %4d\n", " ", $1, $2)}'		>> $logfile
+#  		echo " "							>> $logfile
+#  	fi
+
+	# 开始进行信件分类统计之工作(不输出)
+	cat $basedir/maillog | grep "postfix.*qmgr.*from.*size" |\
+		sed 's/^.*\]://g' | sed 's/:.*$//g' | awk '{print $1}' \
+		> $basedir/postid
+	cat $basedir/maillog | grep "postfix.*smtpd.*client=" \
+		> $basedir/postlog-host
+	cat $basedir/maillog | grep "postfix.*qmgr.*from.*size" \
+		> $basedir/postlog-email-size
+	cat $basedir/maillog | grep "postfix.*smtpd.*LOGIN" \
+		> $basedir/postlog-auth
+	cat $basedir/maillog | grep "postfix.*smtp\[.*to.*relay.*sent" \
+		> $basedir/postlog-send
+	cat $basedir/maillog | grep "postfix.*smtp\[.*to.*relay" |\
+		grep -v 'sent' > $basedir/postlog-nosend
+	touch $basedir/postid
+	postid=`cat $basedir/postid`
+	[ -f $basedir/postlog.1 ] && rm $basedir/postlog.1
+	for mailid in $postid
+	do
+		posthost=`cat $basedir/postlog-host| grep "$mailid" |\
+			sed 's/^.*: client//g'|sed 's/^.*\[//g' |\
+			sed 's/\].*//g' | head -n 1`
+			if [ "$posthost" == "" ]; then
+				posthost="unknow"
+			fi
+		postemail=`cat $basedir/postlog-email-size |\
+			grep "$mailid" |\
+			sed 's/^.*from=<//g' | sed 's/>.*$//g' |\
+			head -n 1`
+			if [ "$postemail" == "" ]; then
+				postemail="unknow"
+			fi
+		postsend=`cat $basedir/postlog-send |\
+			grep "$mailid"|head -n 1`
+		postnosend=`cat $basedir/postlog-nosend |\
+			grep "$mailid"|head -n 1`
+			if [ "$postsend" == "" ] && [ "$postnosend" == "" ]; then
+				postsend="local"
+			elif [ "$postsend" == "" ] && [ "$postnosend" != "" ]; then
+				postsend="deffer"
+			else
+				postsend="send"
+			fi
+		postauth=`cat $basedir/postlog-auth |\
+			grep "$mailid" |head -n 1`
+			if [ "$postauth" == "" ]; then
+				postauth="noauth"
+			else
+				postauth="auth"
+			fi
+		postauthname=`cat $basedir/postlog-auth |\
+			grep "$mailid" | sed 's/^.*username=//g'|\
+			head -n 1`
+			if [ "$postauthname" == "" ]; then
+				postauthname="noauth"
+			fi
+		postsize=`cat $basedir/postlog-email-size |\
+			grep "$mailid" |\
+			sed 's/^.*size=//g' | sed 's/,.*$//g' |\
+			head -n 1`
+			if [ "$postsize" == "" ]; then
+				postsize="0"
+			fi
+		echo $posthost $postemail $postsend $postauth $postauthname "," $postsize \
+			>> $basedir/postlog.1
+	done
+	cat $basedir/postlog.1 | sort | uniq > $basedir/postlog
+	touch $basedir/postlog
+
+	# 6. 十大信件
+	postfix_10=`cat $basedir/postlog | wc -l | awk '{print $1}'`
+	if [ "$postfix_10" != "0" ]; then 
+		echo "十封最大容量的邮件"				>> $logfile
+		echo "帐号   来源地址 邮件进出 信件容量(KBytes)"| \
+		awk '{printf("%-6s %-35s %-20s %-8s %-10s\n", " ", $1, $2, $3, $4)}' >> $logfile
+		cat $basedir/postlog | grep -v deffer |\
+		awk '{printf("%-6s %-35s %-20s %-8s %10d\n", " ", $2, $1, $3, $7/1024)}' |\
+		sort -k 4 -gr | head -n 10				>> $logfile
+		echo " "						>> $logfile
+	fi
+
+	# 7. 认证者寄信
+	postfix_auth="0"
+	if [ "$auth" == "yes" ]; then
+		cat $basedir/postlog | egrep '\bauth\b' |\
+			awk '{FS=","}{if(NR>=2) for( i=1; i<2; i++ ) (sizes[$i]=sizes[$i]+$2/1024) && Number[$i]++ };
+			END{ for( course in Number )
+			printf( "%-80s %-10s %-10s\n", course, Number[course], sizes[course])}'\
+			> $basedir/postfix-auth
+		postfix_auth=`cat $basedir/postfix-auth | grep 'send' |\
+			wc -l| awk '{print $1}'`
+		if [ "$postfix_auth" != "0" ]; then
+			echo "经过认证者寄出本机(转信)"				>> $logfile
+			echo "帐号   来源地址 次数 信件容量(KBytes)"| \
+			awk '{printf("%-6s %-25s %-20s %-6s %-10s\n", " ", $1, $2, $3, $4)}'  >> $logfile
+			cat $basedir/postfix-auth | grep 'send' |\
+			awk '{printf("%-6s %-25s %-20s %4d %10d\n", " ", $5, $1, $6, $7)}' |\
+			sort -k 3 -gr  						>> $logfile
+			echo " "						>> $logfile
+		fi
+		postfix_auth=`cat $basedir/postfix-auth | grep 'local' |\
+			wc -l| awk '{print $1}'`
+		if [ "$postfix_auth" != "0" ]; then
+			echo "经过认证者寄入本机"				>> $logfile
+			echo "帐号   来源地址 次数 信件容量(KBytes)"| \
+			awk '{printf("%-6s %-25s %-20s %-6s %-10s\n", " ", $1, $2, $3, $4)}'  >> $logfile
+			cat $basedir/postfix-auth | grep 'local' |\
+			awk '{printf("%-6s %-25s %-20s %4d %10d\n", " ", $5, $1, $6, $7)}' |\
+			sort -k 3 -gr  						>> $logfile
+			echo " "						>> $logfile
+		fi
+	fi
+
+	# 8.延迟寄出的信件 deferred
+	cat $basedir/maillog | grep 'deferred' | awk '{print $6 }' | \
+		sort | uniq -c > $basedir/postfix-defer
+	defer=`cat $basedir/postfix-defer | awk '{print $1}'`
+	if [ "$defer" != "" ]; then
+	declare -i I
+	I=0
+	for II in $defer
+	do
+		I=$I+1
+		defernum[$I]=$II
+	done
+	defer=`cat $basedir/postfix-defer | awk '{print $2}'`
+	I=0
+	echo "信件延迟寄出的问题分析"						>> $logfile
+	echo "来源帐号" "目标帐号" "次数" "信件容量(bytes)" | \
+	awk '{printf("%-6s %-32s %-32s %4s %16s\n"," ",$1,$2,$3,$4)}'	>> $logfile
+	for II in $defer
+	do
+		I=$I+1
+		defertmp=`cat $basedir/maillog | grep $II | grep 'from' |\
+			 head -n 1`
+		deferfrom=`echo $defertmp | sed 's/^.*from\=//g' | \
+			sed 's/,.*$//g' | sed 's/<//g' | sed 's/>//g'`
+		defersize[$I]=`echo $defertmp | sed 's/^.*size\=//g' |\
+			sed 's/,.*$//g'`
+		defertmp=`cat $basedir/maillog | grep $II | grep 'to' | \
+			grep defer |head -n 1`
+		deferto=`echo $defertmp | sed 's/^.*to\=//g' | \
+			sed 's/,.*$//g' | sed 's/<//g' | sed 's/>//g'`
+		deferreason=`echo $defertmp | cut -d '(' -f2 | sed 's/)//g'`
+		echo $deferfrom $deferto ${defernum[$I]} ${defersize[$I]}| \
+		awk '{printf("%-6s %-32s %-32s %4d %5d\n"," ",$1,$2,$3,$4/1024)}'	>> $logfile
+		echo "          延迟原因 ==> " $deferreason				>> $logfile
+	done
+	echo " "									>> $logfile
+	fi
+
+	cat $basedir/maillog | grep 'postfix.*smtpd.*SASL.*authen.*fail' \
+		> $basedir/postfix-noauth
+	postfix_noauth=`wc -l $basedir/postfix-noauth| awk '{print $1}'`
+	if [ "$postfix_noauth" != "0" ]; then
+		echo "认证失败的记录资料"				>> $logfile
+		cat $basedir/postfix-noauth|sed 's/^/      /g'		>> $logfile
+		echo " "						>> $logfile
+	fi
+
+}
+

@@ -1,0 +1,156 @@
+#!/bin/bash
+#
+# 主要分析主机开放的 ports 与该 port 的拥有者。
+# 利用 netstat 与 ps 来进行分析的
+#
+#####################################################################
+netstat -tlnp > $basedir/netstat.tcp.tmp
+netstat -ulnp > $basedir/netstat.udp.tmp
+ps -aux --cols 200 > $basedir/netstat.ps 2> /dev/null
+
+# 1. 取得 local 开放的 TCP port 
+if [ -e $basedir/netstat.tcp.local ]; then
+	rm $basedir/netstat.tcp.local
+	touch $basedir/netstat.tcp.local
+fi
+grep '127.0.0.1' $basedir/netstat.tcp.tmp > $basedir/netstat.tmp
+portnu=`wc -l $basedir/netstat.tmp | awk '{print $1}'`
+if [ "$portnu" -gt "0" ]; then
+	for ((i=1; i<=$portnu; i=i+1))
+	do
+		portline=`sed -n "$i","$i"p $basedir/netstat.tmp`
+		localport=`echo $portline | awk '{print $4}'|sed 's/^.*://g'`
+		outport=`grep -v '127.0.0.1' $basedir/netstat.tcp.tmp | awk '{print $4}' | sed 's/^.*://g' | grep $localport`
+		if [ "$outport" == "" ]; then
+			process=`echo $portline | awk '{print $7}'| cut -d'/' -f1`
+			processnu=`wc -l $basedir/netstat.ps | awk '{print $1}'`
+			for ((j=1; j<=$processnu; j=j+1))
+			do
+				psline=`sed -n "$j","$j"p $basedir/netstat.ps`
+				psid=`echo $psline | awk '{print $2}'|grep $process`
+				if [ "$psid" != "" ]; then
+					localportown=`echo $psline | awk '{print $1}'`
+					localcommand=`echo $psline | cut -d " " -f11-`
+					break
+				fi
+			done
+			echo -e $localport\|"("$localportown")"\|$localcommand >> $basedir/netstat.tcp.local
+		fi
+	done
+fi
+
+# 2. 取得 output 界面的 TCP port
+if [ -e $basedir/netstat.tcp.output ]; then
+	rm $basedir/netstat.tcp.output
+	touch $basedir/netstat.tcp.output
+fi
+grep -v '127.0.0.1' $basedir/netstat.tcp.tmp | grep tcp > $basedir/netstat.tmp
+portnu=`wc -l $basedir/netstat.tmp | awk '{print $1}'`
+if [ "$portnu" -gt "0" ]; then
+	for ((i=1; i<=$portnu; i=i+1))
+	do
+		portline=`sed -n "$i","$i"p $basedir/netstat.tmp`
+		outport=`echo $portline | awk '{print $4}'|sed 's/^.*://g'`
+		process=`echo $portline | awk '{print $7}'| cut -d'/' -f1`
+		processnu=`wc -l $basedir/netstat.ps | awk '{print $1}'`
+		for ((j=1; j<=$processnu; j=j+1))
+		do
+			psline=`sed -n "$j","$j"p $basedir/netstat.ps`
+			psid=`echo $psline | awk '{print $2}'|grep $process`
+			if [ "$psid" != "" ]; then
+				localportown=`echo $psline | awk '{print $1}'`
+				localcommand=`echo $psline | cut -d " " -f11-`
+				break
+			fi
+		done
+		echo -e $outport\|"("$localportown")"\|$localcommand >> $basedir/netstat.tcp.output
+	done
+fi
+
+# 3. 取得 local 开放的 UDP port 
+if [ -e $basedir/netstat.udp.local ]; then
+	rm $basedir/netstat.udp.local
+	touch $basedir/netstat.udp.local
+fi
+grep '127.0.0.1' $basedir/netstat.udp.tmp > $basedir/netstat.tmp
+portnu=`wc -l $basedir/netstat.tmp | awk '{print $1}'`
+if [ "$portnu" -gt "0" ]; then
+	for ((i=1; i<=$portnu; i=i+1))
+	do
+		portline=`sed -n "$i","$i"p $basedir/netstat.tmp`
+		localport=`echo $portline | awk '{print $4}'|sed 's/^.*://g'`
+		outport=`grep -v '127.0.0.1' $basedir/netstat.udp.tmp | awk '{print $4}' | sed 's/^.*://g' | grep $localport`
+		if [ "$outport" == "" ]; then
+			process=`echo $portline | awk '{print $6}'| cut -d'/' -f1`
+			processnu=`wc -l $basedir/netstat.ps | awk '{print $1}'`
+			for ((j=1; j<=$processnu; j=j+1))
+			do
+				psline=`sed -n "$j","$j"p $basedir/netstat.ps`
+				psid=`echo $psline | awk '{print $2}'|grep $process`
+				if [ "$psid" != "" ]; then
+					localportown=`echo $psline | awk '{print $1}'`
+					localcommand=`echo $psline | cut -d " " -f11-`
+					break
+				fi
+			done
+			echo -e $localport\|"("$localportown")"\|$localcommand >> $basedir/netstat.udp.local
+		fi
+	done
+fi
+
+# 4. 取得 output 界面的 UDP port
+if [ -e $basedir/netstat.udp.output ]; then
+	rm $basedir/netstat.udp.output
+	touch $basedir/netstat.udp.output
+fi
+grep -v '127.0.0.1' $basedir/netstat.udp.tmp | grep udp > $basedir/netstat.tmp
+portnu=`wc -l $basedir/netstat.tmp | awk '{print $1}'`
+if [ "$portnu" -gt "0" ]; then
+	for ((i=1; i<=$portnu; i=i+1))
+	do
+		portline=`sed -n "$i","$i"p $basedir/netstat.tmp`
+		outport=`echo $portline | awk '{print $4}'|sed 's/^.*://g'`
+		process=`echo $portline | awk '{print $6}'| cut -d'/' -f1`
+		processnu=`wc -l $basedir/netstat.ps | awk '{print $1}'`
+		for ((j=1; j<=$processnu; j=j+1))
+		do
+			psline=`sed -n "$j","$j"p $basedir/netstat.ps`
+			psid=`echo $psline | awk '{print $2}'|grep $process`
+			if [ "$psid" != "" ]; then
+				localportown=`echo $psline | awk '{print $1}'`
+				localcommand=`echo $psline | cut -d " " -f11-`
+				break
+			fi
+		done
+		echo -e $outport\|"("$localportown")"\|$localcommand >> $basedir/netstat.udp.output
+	done
+fi
+
+
+echo "================= Ports 的相关分析 ======================="	>> $logfile
+echo "主机开启的 port 与相关的 process owner："				>> $logfile
+if [ -e "$basedir/netstat.tcp.local" ] || [ -e "$basedir/netstat.udp.local" ]; then
+	echo '仅对本机开放的 ports (PID|owner|command)'			>> $logfile
+	if [ -e "$basedir/netstat.tcp.local" ]; then
+		cat $basedir/netstat.tcp.local|sort -t'|' -k 1 -n|uniq| \
+		sed 's/^/       tcp /g'|cut -c 1-80				>> $logfile
+	fi
+	if [ -e "$basedir/netstat.udp.local" ]; then
+		cat $basedir/netstat.udp.local|sort -t'|' -k 1 -n|uniq| \
+		sed 's/^/       udp /g'|cut -c 1-80				>> $logfile
+	fi
+fi
+if [ -e "$basedir/netstat.tcp.output" ] || [ -e "$basedir/netstat.udp.output" ]; then
+	echo '仅对外部开放的 ports (PID|owner|command)'			>> $logfile
+	if [ -e "$basedir/netstat.tcp.output" ]; then
+		cat $basedir/netstat.tcp.output|sort -t'|' -k 1 -n|uniq| \
+		sed 's/^/       tcp /g'|cut -c 1-80				>> $logfile
+	fi
+	if [ -e "$basedir/netstat.udp.output" ]; then
+		cat $basedir/netstat.udp.output|sort -t'|' -k 1 -n|uniq| \
+		sed 's/^/       udp /g'|cut -c 1-80				>> $logfile
+	fi
+fi
+echo ""									>> $logfile
+echo ""									>> $logfile
+unset localcommand localport localportown outport portline portnu process processnu psid psline

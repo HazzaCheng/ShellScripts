@@ -1,0 +1,20 @@
+#!/bin/bash
+#
+# 主要分析 mail server 这个服务所产生的 logfile 资料，
+# 分析的是 /var/log/procmail 这个档案
+#
+#####################################################################
+# 9 procmail 的登录资料的功能函数 (Function) ！
+funcprocmail () {
+	echo "================= Procmail 的登录档资料汇整 ===================="	>> $logfile
+	echo "底下为今天信计入本机的资讯"					>> $logfile
+	logprocmail=`/bin/ls /var/log/ | grep procmail| head -n 1`
+	declare -i nuall=`wc -l /var/log/"$logprocmail" | awk '{print $1}'`
+	dayproc=`cat "$basedir/dattime"`
+	declare -i nufir=`grep -n "$dayproc"  \
+		         /var/log/$logprocmail | cut -d ':' -f1|head -n 1`
+	declare -i num=$nuall-$nufir+1
+	tail -n $num /var/log/$logprocmail					>> $logfile
+	echo " "								>> $logfile
+}
+

@@ -1,0 +1,103 @@
+#!/bin/bash
+#
+# 主要分析 sendmail 这个服务所产生的 logfile 资料，
+# 分析的是 /var/log/maillog
+#
+#####################################################################
+# Sendmail 的登录资料的功能函数 (Function) ！
+funcsendmail () {
+	echo "================= Sednamil 的登录资料整理 =================="	>> $logfile
+	auth=no
+	[ -f /usr/lib/sasl/Sendmail.conf ]  && auth=yes
+	[ -f /usr/lib/sasl2/Sendmail.conf ] && auth=yes
+	if [ "$auth" == "yes" ]; then
+		echo "您的主机有进行 SASL 身份认证的功能"			>> $logfile
+	else
+		echo "您的主机没有进行 SASL 身份认证的功能"			>> $logfile
+	fi
+	echo " "								>> $logfile
+	sendmailright=`cat $basedir/maillog|grep "sendmail.*from.*class" | \
+		 wc -l | awk '{print $1}'`
+	if [ "$sendmailright" != "0" ]; then
+		echo "SMTP共收信次数: $sendmailright " | \
+			awk '{printf( "%-21s %10d\n", $1, $2)}'  		>> $logfile
+		cat $basedir/maillog |grep "sendmail.*from.*class" |\
+			sed 's/^.*size=//g' | awk -F ',' '{print $1}' \
+			> $basedir/maillogsendmailall
+		mailsize=`awk '{ smtp = smtp + $1 } END {print smtp/1024}' \
+			$basedir/maillogsendmailall`
+		echo "共收受信件的容量大小: $mailsize KBytes" | \
+			awk '{printf( "%-20s %10d %-8s\n",$1, $2, $3)}'	>> $logfile
+		echo " "							>> $logfile
+	fi
+	echo " " > $basedir/maillogsendmaillocal-1
+	echo " " > $basedir/maillogsendmaillocal-2
+	echo " " > $basedir/maillogsendmaillocal-3
+	cat $basedir/maillog |grep "sendmail.*from.*mech=LOGIN" | \
+		sed 's/^.*from=//g' |  awk -F ',' '{print $1}' \
+		>> $basedir/maillogsendmaillocal-1
+	cat $basedir/maillog |grep "sendmail.*from.*mech=LOGIN" | \
+		sed 's/^.*relay=//g' |  awk '{print $1}' |\
+		awk '{print $1 ","}' \
+		>> $basedir/maillogsendmaillocal-2
+	cat $basedir/maillog |grep "sendmail.*from.*mech=LOGIN" | \
+		sed 's/^.*size=//g' |  awk -F ',' '{print $1}' \
+		>> $basedir/maillogsendmaillocal-3
+	cat $basedir/maillog |grep "sendmail.*from.*localhost" | \
+		sed 's/^.*from=//g' |  awk -F ',' '{print $1}' \
+		>> $basedir/maillogsendmaillocal-1
+	cat $basedir/maillog |grep "sendmail.*from.*localhost" | \
+		sed 's/^.*relay=//g' |  awk '{print $1 ","}' \
+		>> $basedir/maillogsendmaillocal-2
+	cat $basedir/maillog |grep "sendmail.*from.*localhost" | \
+		sed 's/^.*size=//g' |  awk -F ',' '{print $1}' \
+		>> $basedir/maillogsendmaillocal-3
+	paste $basedir/maillogsendmaillocal-1  \
+		$basedir/maillogsendmaillocal-2 \
+		> $basedir/maillogsendmaillocal-4
+	paste $basedir/maillogsendmaillocal-4  \
+		$basedir/maillogsendmaillocal-3 \
+		> $basedir/maillogsendmaillocal
+	declare -i sendmaillocal=`cat $basedir/maillogsendmaillocal| \
+		wc -l| awk '{print $1}'`
+	sendmaillocal=$sendmaillocal-1
+	if [ "$sendmaillocal" != "0" ]; then
+		echo "SMTP本机登入次数: $sendmaillocal" | \
+			awk '{printf( "%-21s %10d\n", $1, $2)}' 		>> $logfile
+		mailsize=`awk '{ smtp = smtp + $1 } END {print smtp/1024}' \
+			$basedir/maillogsendmaillocal-3`
+		echo "共收受信件的容量大小: $mailsize KBytes" | \
+			awk '{printf( "%-20s %10d %-8s\n",$1, $2, $3)}'	>> $logfile
+		echo " "							>> $logfile
+		echo "帐号   来源地址 次数 信件容量(KBytes)"| \
+		awk '{printf("%-35s %-35s %-6s %-10s\n", $1, $2, $3, $4)}'  >> $logfile
+		awk '{FS=","}{if(NR>=2) for( i=1; i<2; i++ ) (sizes[$i]=sizes[$i]+$2/1024) && Number[$i]++ };
+			END{ for( course in Number )
+			printf( "%-80s %-10s %-10s\n", course, Number[course], sizes[course])}' \
+			$basedir/maillogsendmaillocal| sort -k 3 -gr |\
+			awk '{printf("%-35s %-35s %4d %10d\n", $1, $2, $3, $4)}' >> $logfile
+		echo " " 							>> $logfile
+	fi
+	if [ -x /usr/bin/mailq ] ; then
+		mailq > $basedir/mailq
+		declare -i mailq=`wc -l $basedir/mailq | awk '{print $1}'`
+		if [ "$mailq" -ge "3" ] ; then
+			echo "放在邮件序列当中的信件咨询"		>> $logfile
+			cat $basedir/mailq				>> $logfile
+			echo " "					>> $logfile
+		fi
+	fi
+	sendmailerror=`cat $basedir/maillog | grep "sendmail.*reject=" | wc -l | \
+		awk '{print $1}'`
+	if [ "$sendmailerror" != "0" ]; then
+		echo "错误的邮件资讯：提供系统管理员处理用"			>> $logfile
+		cat $basedir/maillog | grep "sendmail.*reject="			>> $logfile
+		echo " "							>> $logfile
+	fi
+	if [ "$sendmailright" == "0" ] && [ "$sendmaillocal" == "0" ] \
+		&& [ "$sendmailerror" == "0" ]; then
+		echo "今日沒有 sendmail 的相关咨询"				>> $logfile
+		echo " "							>> $logfile
+	fi
+}
+

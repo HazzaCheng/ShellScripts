@@ -1,0 +1,58 @@
+#!/bin/bash
+#
+# 主要分析 samba 这个服务所产生的 logfile 资料，
+# 分析的是 /var/log/samba/smbd.log 这个档案
+#
+#####################################################################
+# samba 的登录资料的功能函数 (Function)
+funcsamba () {
+	echo "================= SAMBA 的登录档资讯汇整 ======================="	>> $logfile
+	# 先判断登录档是否存在
+	sambalogfile="/var/log/samba/smbd.log"
+	if [ ! -f "$sambalogfile" ] ; then
+		echo "找不到登录档 $sambalogfile ！"				>> $logfile
+		echo "目前本程序分析单一的登录档 $sambalogfile"		>> $logfile
+		echo "请修改您的 smb.conf 內容，将 log file 改成底下："		>> $logfile
+		echo "log file = $sambalogfile"					>> $logfile
+	else
+		smbdate=`date +%Y/%m/%d`
+		declare -i smbstart=`nl $sambalogfile | grep $smbdate | head -n 1 | awk '{print $1}'`
+		declare -i smbend=`wc -l $sambalogfile | awk '{print $1}'`
+		declare -i smbline=$smbend-$smbstart+1
+		if [ "$smbline" != "0" ] ; then
+		    tail -n $smbline $sambalogfile > $basedir/sambalogfile
+		    # 找出正确的资料来
+		    testing=`grep 'connect to service' $basedir/sambalogfile`
+		    if [ "$testing" != "" ]; then
+			grep 'connect to service' $basedir/sambalogfile | \
+				sed 's/connect to service.*$//g' | \
+				awk '{print $1 $2 $3 $4 $5 $6}'			> $basedir/samba_ok_host
+			grep 'connect to service' $basedir/sambalogfile | \
+				sed 's/^.*connect to service //g' | \
+				sed 's/ initially as user.*$//g'	| \
+				sed 's/ /　/g'					> $basedir/samba_ok_dir
+			grep 'connect to service' $basedir/sambalogfile | \
+				sed 's/^.*initially as user//g' | \
+				sed 's/(uid=.*$//g'				> $basedir/samba_ok_user
+			paste $basedir/samba_ok_host $basedir/samba_ok_dir $basedir/samba_ok_user | \
+				sort  | uniq -c					> $basedir/samba_ok
+			echo "主机 目录 使用者 次数" | \
+				awk '{printf("%-32s %-15s %-15s %-4s \n", $1, $2, $3, $4)}'	>> $logfile
+			cat $basedir/samba_ok | \
+				awk '{printf("%-32s %-15s %-15s %-4d \n", $2, $3, $4, $1)}'	>> $logfile
+			echo " "								>> $logfile
+		    fi
+		    # 找出有错误的资讯
+		    testing=`grep 'access_denied' $basedir/sambalogfile `
+		    if [ "$testing" != "" ]; then
+			echo "有登入的错误讯息"				>> $logfile
+			grep 'access_denied' $basedir/sambalogfile	>> $logfile
+			echo ""						>> $logfile
+		    fi
+		else
+			echo "本日无 Samba 的相关资讯"			>> $logfile
+			echo ""						>> $logfile
+		fi
+	fi
+}
+

@@ -12,3 +12,4 @@ Restore some useful scripts.
 - ***getSystemUsersInfos.sh***: use command:id to get the infomation of system users 
 - ***params.sh***: the usage of case
 - ***generateRandomNums.sh***: generate random numbers
+- ***logfile***: extract system critical information by analyzing system logs

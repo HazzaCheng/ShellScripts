@@ -1,0 +1,61 @@
+#!/bin/bash
+#
+# 主要分析 wuftpd 这个服务所产生的 logfile 资料，
+# 分析的是 /var/log/messages
+#
+#####################################################################
+# 4 Wu-FTP 的登录资料的功能函数 
+funcwuftp () {
+	echo "================= FTP 的登录资料 ======================="	>> $logfile
+	wuftpright=`cat $basedir/messageslog|grep "FTP LOGIN" | wc -l | \
+		awk '{print $1}'`
+	if [ "$wuftpright" != "0" ]; then
+		echo "Wu-FTP-成功登入次数 $wuftpright" | \
+			awk '{printf( "%-41s %3d\n", $1, $2)}'		>> $logfile
+		echo "帐号   来源地址 次数 "| \
+			awk '{printf("%-15s %-25s %-4s\n", $1, $2, $3)}'	>> $logfile
+		cat $basedir/messageslog | grep "FTP LOGIN" | \
+			sed 's/^.*,//g' | awk '{print $1}' \
+			> $basedir/messageswuftp-1
+		cat $basedir/messageslog | grep "FTP LOGIN" | \
+			sed 's/^.*FROM//g' | awk '{print $1}' \
+			> $basedir/messageswuftp-2
+		paste $basedir/messageswuftp-1 $basedir/messageswuftp-2 \
+			> $basedir/messageswuftp
+		/bin/awk '{ for( i=0; i<1; i++ ) Number[$i]++ };
+			END{ for( course in Number )
+			printf( "%-35s %3d\n", course, Number[course])}' \
+			$basedir/messageswuftp  | sort -k 3 -gr | \
+			awk '{printf("%-15s %-25s %3d\n", $1, $2, $3)}'	>> $logfile
+		echo " " 							>> $logfile
+	fi
+	wuftperror=`cat  $basedir/messageslog|grep "ftp.*auth.*fail" |\
+		wc -l| awk '{print $1}'`
+	if [ "$wuftperror" != "0" ]; then
+		echo "Wu-FTP-错误登入次数: $wuftperror" | \
+			awk '{printf( "%-41s %3d\n", $1, $2)}'		>> $logfile
+		cat $basedir/messageslog |grep "ftp.*auth.*fail" | \
+			sed 's/^.*\buser=//g' | awk '{print $1}' \
+			> $basedir/messageswuftpno.1.tmp
+		awk -v mon=`date +%b` '{ if( $1 != mon ) print $1; 
+			if( $1 == mon ) print "UnknowUser" }' \
+			$basedir/messageswuftpno.1.tmp  \
+			> $basedir/messageswuftpno.1
+		cat $basedir/messageslog |grep "ftp.*auth.*fail" | \
+			sed 's/^.*rhost=//g' | awk '{print $1}' \
+			> $basedir/messageswuftpno.2
+		paste $basedir/messageswuftpno.1 $basedir/messageswuftpno.2 \
+			> $basedir/messageswuftpno
+		/bin/awk '{ for( i=0; i<1; i++ ) Number[$i]++ };
+			END{ for( course in Number )
+			printf( "%-35s %3d\n", course, Number[course])}' \
+			$basedir/messageswuftpno| sort -k 3 -gr | \
+			awk '{printf("%-15s %-25s %3d\n", $1, $2, $3)}' 	>> $logfile
+		echo " "							>> $logfile
+	fi
+	if [ "$wuftpright" == "0" ] && [ "$wuftperror" == "0" ]; then
+		echo "今日没有使用 Wu FTP 的记录"				>> $logfile
+		echo " "							>> $logfile
+	fi
+}
+
