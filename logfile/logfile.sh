@@ -3,13 +3,9 @@
 ##########################################################################################
 # YOU MUST KEYIN SOME PARAMETERS HERE!!
 # 底下的资料是您必须要填写的！
-email=""		# logfile 寄给的 e-mail 地址
-				                # 可以使用底下的格式寄给多个 e-mail 地址：
-				                # email="root@localhost,yourID@hostname"
-				                # 每个 email 用逗号，不要加空格！
 
-basedir="/home/hazza/logfile"	# logfile.sh 放置的目录
-funcdir="/home/hazza/logfile"
+basedir="/usr/local/logfile"	# logfile.sh 放置的目录
+funcdir="/usr/local/logfile"
 
 outputall="yes"		# 是否要将所有的登录档內容都打印出來？
 			        # 对于一般新手而言，只要看汇总的内容即可，
@@ -265,9 +261,33 @@ fi
 # At last! we send this mail to you!
 export LANG=en_US.UTF-8
 export LC_ALL=en_US.UTF-8
-if [ -x /usr/bin/uuencode ]; then
-	uuencode $logfile logfile.html | mail -s "$hosthome logfile analysis results" $email 
-else
-	mail -s "$hosthome logfile analysis results" $email < $logfile
-fi
+
+email="hazzacheng@126.com"		# logfile 寄给的 e-mail 地址
+				                # 可以使用底下的格式寄给多个 e-mail 地址：
+				                # email="root@localhost,yourID@hostname"
+                                # 每个 email 用逗号，不要加空格！
+
+sender="hazzacheng@126.com" 
+passwd="" 
+smtp_server="smtp.126.com" 
+subject="Daily System Analzsis" 
+sender_name="Root" 
+receiver_name="HazzaCheng" 
+                                
+LD_IFS="$IFS" 
+IFS="," 
+arr=($email) 
+IFS="$OLD_IFS"
+for eml in ${arr[@]}
+do
+    /usr/bin/python3 $funcdir/function/sendPlainEmail.py $sender $passwd $eml $smtp_server \
+            $logfile $subject $sender_name $receiver_name $IPs  
+done
+                                
+                                
+#if [ -x /usr/bin/uuencode ]; then
+#	uuencode $logfile logfile.html | mail -s "$hosthome logfile analysis results" $email 
+#else
+#	mail -s "$hosthome logfile analysis results" $email < $logfile
+#fi
 
