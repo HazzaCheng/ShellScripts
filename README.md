@@ -13,3 +13,4 @@ Restore some useful scripts.
 - ***params.sh***: the usage of case
 - ***generateRandomNums.sh***: generate random numbers
 - ***logfile***: extract system critical information by analyzing system logs
+- ***Md5CheckFile***: check the important files whether they are modified by md5sum
